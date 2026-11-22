@@ -1,0 +1,29 @@
+name: Restore audited historical downloads
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/restore-downloads.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: immutable-download-restore
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore and verify audited immutable downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ops/restore_public_downloads.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: download-parity-proof
+          path: download-parity-proof.json
+          retention-days: 7
