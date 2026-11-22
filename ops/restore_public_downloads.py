@@ -7,7 +7,8 @@ def api(method,url,data=None,ctype=None):
         if data is not None:h['Content-Type']=ctype or 'application/json'
         request=urllib.request.Request(url if url.startswith('https://') else 'https://api.github.com'+url,data=data,headers=h,method=method)
         try:
-            with urllib.request.urlopen(request,timeout=180) as r:return json.load(r)
+            with urllib.request.urlopen(request,timeout=180) as r:
+                raw=r.read();return json.loads(raw) if raw else None
         except urllib.error.HTTPError as e:
             detail=e.read().decode('utf8','replace')
             if e.code in {403,429} and 'rate limit' in detail.lower():
@@ -30,6 +31,12 @@ for item in manifest['assets']:
     tag=item['tag'];name=item['name'];expected='sha256:'+item['sha256']
     assert tag in releases and '/' not in name and '\\' not in name
     existing=known[tag].get(name)
+    if existing and existing.get('state')=='starter' and not existing.get('digest'):
+        # GitHub retains unfinished upload placeholders after interrupted
+        # transfers. They contain no completed publication and block its name.
+        api('DELETE','/repos/'+repo+'/releases/assets/'+str(existing['id']))
+        print(json.dumps({'phase':'remove-unfinished-upload-placeholder','name':name}),flush=True)
+        existing=None
     if existing:
         assert existing['size']==item['bytes'] and existing.get('digest')==expected,'Existing download differs; refusing overwrite'
     else:
